@@ -1,5 +1,5 @@
 var fs = require('fs');
-
+        
 var BuildAutoInc = function (file, config) {
     this.file = file;
     this.config = config || {};
@@ -12,12 +12,14 @@ BuildAutoInc.prototype.read = function (file, callback) {
         if (err) {
             callback(ver);
         }
-        var v = buf.toString().split('.');
+        else {
+        var v = buf.toString().replace(/\n/g, '').split('.');
         ver.major = v[0];
         ver.minor = v[1];
-        ver.patchmj = v[2];
+        ver.patch = v[2];
         ver.build = v[3];
-        callback(version);
+        callback(ver);
+        }
     });
 };
 
@@ -50,17 +52,19 @@ BuildAutoInc.prototype.write = function (cout, ver, callback) {
     }
 };
 
-BuildAutoInc.prototype.apply = function (compiler) {
+uildAutoInc.prototype.apply = function (compiler) {
     var self = this;
     compiler.plugin('run', function (compilation, callback) {
         self.read(self.file, function (ver) {
             ver.build++;
+            console.log('--------', ver);
             ver.text = ver.major + '.' + ver.minor + '.' + ver.patch + '.' + ver.build;
-            if (this.config.output) {
-                for (var i = 0; i < this.config.output.length; i++) {
-                    self.write(this.config.output[i], ver, callback);
+            if (self.config && self.config.output) {
+                for (var i = 0; i < self.config.output.length; i++) {
+                    self.write(self.config.output[i], ver, null);
                 }
             }
+            self.write({type:'text', file: self.file}, ver, callback);
         });
     });
 };
