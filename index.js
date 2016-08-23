@@ -52,7 +52,7 @@ BuildAutoInc.prototype.write = function (cout, ver, callback) {
     }
 };
 
-uildAutoInc.prototype.apply = function (compiler) {
+BuildAutoInc.prototype.apply = function (compiler) {
     var self = this;
     compiler.plugin('run', function (compilation, callback) {
         self.read(self.file, function (ver) {
