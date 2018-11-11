@@ -1,24 +1,68 @@
-var fs = require('fs');
+const fs = require('fs');
 
-var BuildAutoInc = function (file, config) {
+const BuildAutoInc = function (file, config) {
     this.file = file;
     this.config = config || {};
 };
 
 BuildAutoInc.prototype.read = function (file, callback) {
-    var self = this;
-    var ver = { major: 0, minor: 0, patch: 0, build: 0 };
+    const self = this;
+    const ver = { major: 0, minor: 0, patch: 0, build: 0 };
     fs.readFile(this.file, function (err, buf) {
         if (err) {
             callback(ver);
         }
         else {
-            var v = buf.toString().replace(/\n/g, '').split('.');
+            const v = buf.toString().replace(/\n/g, '').split('.');
             ver.major = v[0];
             ver.minor = v[1];
             ver.patch = v[2];
-            ver.build = v[3];
-            callback(ver);
+            if (!self.config.input || !self.config.input.url) {
+                ver.build = v[3];
+                callback(ver);
+            }
+            else {
+                const http = require(self.config.input.url.startsWith('https') ? 'https' : 'http') ;
+                http.get(self.config.input.url, (res) => {
+                    const { statusCode } = res;
+                    const contentType = res.headers['content-type'];
+                  
+                    let error;
+                    if (statusCode !== 200) {
+                        error = new Error('Request Failed.\nStatus Code: ' + statusCode);
+                    }
+                    else if (!/^application\/json/.test(contentType) && !/^text\/plain/.test(contentType)) {
+                        error = new Error('Invalid content-type.\n' +
+                            `Expected application/json or text/plain but received ${contentType}`);
+                    }
+                    if (error) {
+                        console.error(error.message);
+                        res.resume();
+                        return;
+                    }
+                  
+                    let rawData = '';
+                    res.on('data', (chunk) => { rawData += chunk; });
+                    res.on('end', () => {
+                        if (/^application\/json/.test(contentType)) {
+                            try {
+                                const parsedData = JSON.parse(rawData);
+                                ver.build = parsedData.build;
+                            }
+                            catch (e) {
+                                console.error(e.message);
+                                return;
+                            }
+                        }
+                        else {
+                            ver.build = rawData;
+                        }
+                        callback(ver);
+                    });
+                }).on('error', (e) => {
+                    console.error(`Got error: ${e.message}`);
+                });
+            }
         }
     });
 };
@@ -49,19 +93,33 @@ BuildAutoInc.prototype.write = function (cout, ver, callback) {
                 + ver.build + ",\n    text: '" + ver.text + "'\n};\n",
                 callback);
             break;
+        case "package":
+            const conf = { 'bin-links': false, verbose: true, prefix: cout.dir };
+            const cli = require('npm');
+            cli.load(conf, (err) => {
+            if(err) {
+                    return reject(err);
+            }
+            cli.commands.version([ver.major + "." + ver.minor + "." + ver.patch], callback);
+            cli.on('log', (message) => {
+                    console.log(message);
+                });
+            });
+            break;
     }
 };
 
 BuildAutoInc.prototype.apply = function (compiler) {
-    var self = this;
+    const self = this;
 
     compiler.plugin('run', function (compilation, callback) {
         self.read(self.file, function (ver) {
             ver.patch++;
-            console.log('----------------------', ver);
-            ver.text = ver.major + '.' + ver.minor + '.' + ver.patch + '.' + ver.build;
+            const tv = ver.major + '.' + ver.minor + '.' + ver.patch + '.' + ver.build;
+            console.log('----------------------[', tv, "]---", ver);
+            ver.text = tv;
             if (self.config && self.config.output) {
-                for (var i = 0; i < self.config.output.length; i++) {
+                for (let i = 0; i < self.config.output.length; i++) {
                     self.write(self.config.output[i], ver, null);
                 }
             }
@@ -72,8 +130,9 @@ BuildAutoInc.prototype.apply = function (compiler) {
     compiler.plugin('watch-run', function (compilation, callback) {
         self.read(self.file, function (ver) {
             ver.build++;
-            console.log('----------------------', ver);
-            ver.text = ver.major + '.' + ver.minor + '.' + ver.patch + '.' + ver.build;
+            let tv = ver.major + '.' + ver.minor + '.' + ver.patch + '.' + ver.build;
+            console.log('----------------------[', tv, "]---", ver);
+            ver.text = tv;
             self.write({ type: 'text', file: self.file }, ver, callback);
         });
     });

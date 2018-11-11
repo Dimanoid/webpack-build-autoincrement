@@ -1,6 +1,6 @@
 {
-  "name": "webpack-build-autoincrement",
-  "version": "1.0.2",
+  "name": "@dimanoid/webpack-build-autoincrement",
+  "version": "1.0.5",
   "description": "Webpack plugin that autoincrement buid number and exports version object to several formats (json, text, typescript)",
   "main": "index.js",
   "scripts": {
