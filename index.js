@@ -14,11 +14,11 @@ BuildAutoInc.prototype.read = function (file, callback) {
         }
         else {
             const v = buf.toString().replace(/\n/g, '').split('.');
-            ver.major = v[0];
-            ver.minor = v[1];
-            ver.patch = v[2];
+            ver.major = +v[0];
+            ver.minor = +v[1];
+            ver.patch = +v[2];
             if (!self.config.input || !self.config.input.url) {
-                ver.build = v[3];
+                ver.build = +v[3];
                 callback(ver);
             }
             else {
@@ -47,7 +47,7 @@ BuildAutoInc.prototype.read = function (file, callback) {
                         if (/^application\/json/.test(contentType)) {
                             try {
                                 const parsedData = JSON.parse(rawData);
-                                ver.build = parsedData.build;
+                                ver.build = +parsedData.build;
                             }
                             catch (e) {
                                 console.error(e.message);
@@ -55,7 +55,7 @@ BuildAutoInc.prototype.read = function (file, callback) {
                             }
                         }
                         else {
-                            ver.build = rawData;
+                            ver.build = +rawData;
                         }
                         callback(ver);
                     });
@@ -114,15 +114,10 @@ BuildAutoInc.prototype.apply = function (compiler) {
 
     compiler.plugin('run', function (compilation, callback) {
         self.read(self.file, function (ver) {
-            ver.patch++;
-            const tv = ver.major + '.' + ver.minor + '.' + ver.patch + '.' + ver.build;
+            ver.build++;
+            let tv = ver.major + '.' + ver.minor + '.' + ver.patch + '.' + ver.build;
             console.log('----------------------[', tv, "]---", ver);
             ver.text = tv;
-            if (self.config && self.config.output) {
-                for (let i = 0; i < self.config.output.length; i++) {
-                    self.write(self.config.output[i], ver, null);
-                }
-            }
             self.write({ type: 'text', file: self.file }, ver, callback);
         });
     });
